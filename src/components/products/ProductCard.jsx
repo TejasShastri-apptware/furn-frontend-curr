@@ -1,8 +1,9 @@
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { useAppSelector } from '../../store/hooks';
 import { selectUser } from '../../store/slices/authSlice';
-import { addToCart, updateQuantity, removeFromCart, selectCartItemByProductId } from '../../store/slices/cartSlice';
+import { addToCart, updateQuantity, removeFromCart, selectCartItemByProductId, updateQuantityOptimistic, removeFromCartOptimistic } from '../../store/slices/cartSlice';
 import { toggleWishlist, selectIsWishlisted } from '../../store/slices/wishlistSlice';
 import { Plus, Minus, ShoppingBag, Heart, Trash2 } from 'lucide-react';
 
@@ -13,6 +14,15 @@ export default function ProductCard({ product }) {
     const cartItem = useAppSelector(state => selectCartItemByProductId(state, product.product_id));
     const isWishlisted = useAppSelector(state => selectIsWishlisted(state, product.product_id));
     const outOfStock = product.stock_quantity === 0;
+
+    const syncTimer = useRef(null);
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+        };
+    }, []);
 
     const handleAddToCart = async (e) => {
         e.preventDefault();
@@ -31,19 +41,47 @@ export default function ProductCard({ product }) {
         }
     };
 
-    const handleIncrease = async (e) => {
+    const handleIncrease = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        await dispatch(updateQuantity({ cart_item_id: cartItem.cart_item_id, quantity: cartItem.quantity + 1 }));
+        if (!cartItem) return;
+
+        const newQty = cartItem.quantity + 1;
+        if (newQty > product.stock_quantity) return;
+
+        // 1. Instant UI update
+        dispatch(updateQuantityOptimistic({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+
+        // 2. Debounced API sync
+        if (syncTimer.current) clearTimeout(syncTimer.current);
+        syncTimer.current = setTimeout(() => {
+            dispatch(updateQuantity({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+        }, 500);
     };
 
-    const handleDecrease = async (e) => {
+    const handleDecrease = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (cartItem.quantity > 1) {
-            await dispatch(updateQuantity({ cart_item_id: cartItem.cart_item_id, quantity: cartItem.quantity - 1 }));
+        if (!cartItem) return;
+
+        const newQty = cartItem.quantity - 1;
+
+        if (newQty > 0) {
+            // Optimistic update
+            dispatch(updateQuantityOptimistic({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+            
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+            syncTimer.current = setTimeout(() => {
+                dispatch(updateQuantity({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+            }, 500);
         } else {
-            await dispatch(removeFromCart(cartItem.cart_item_id));
+            // Optimistic remove
+            dispatch(removeFromCartOptimistic(cartItem.cart_item_id));
+            
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+            syncTimer.current = setTimeout(() => {
+                dispatch(removeFromCart(cartItem.cart_item_id));
+            }, 500);
         }
     };
 

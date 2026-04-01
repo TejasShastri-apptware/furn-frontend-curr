@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { productApi } from '../api/productApi';
 import { useDispatch } from 'react-redux';
-import { addToCart } from '../store/slices/cartSlice';
+import { useAppSelector } from '../store/hooks';
+import { addToCart, updateQuantity, removeFromCart, selectCartItemByProductId, updateQuantityOptimistic, removeFromCartOptimistic } from '../store/slices/cartSlice';
 import ProductCard from '../components/products/ProductCard';
-import { ShoppingBag, ChevronLeft, ShieldCheck, Truck, Tag, Ruler, Palette, Layers, ChevronRight } from 'lucide-react';
+import { ShoppingBag, ChevronLeft, ShieldCheck, Truck, Tag, Ruler, Palette, Layers, ChevronRight, Plus, Minus, Trash2 } from 'lucide-react';
 
 const PLACEHOLDER = 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=800';
 
@@ -23,6 +24,19 @@ export default function ProductDetail() {
     const [error, setError] = useState('');
     const [adding, setAdding] = useState(false);
     const [addedMsg, setAddedMsg] = useState('');
+
+    const cartItem = useAppSelector(state => 
+        product ? selectCartItemByProductId(state, product.product_id) : null
+    );
+
+    const syncTimer = useRef(null);
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+        };
+    }, []);
 
     useEffect(() => {
         setLoading(true);
@@ -80,6 +94,46 @@ export default function ProductDetail() {
             setTimeout(() => setAddedMsg(''), 3000);
         } finally {
             setAdding(false);
+        }
+    };
+
+    const handleIncrease = () => {
+        if (!cartItem || !product) return;
+        const newQty = cartItem.quantity + 1;
+        if (newQty > product.stock_quantity) return;
+
+        // Instant UI
+        dispatch(updateQuantityOptimistic({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+
+        // Debounced Sync
+        if (syncTimer.current) clearTimeout(syncTimer.current);
+        syncTimer.current = setTimeout(() => {
+            dispatch(updateQuantity({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+        }, 500);
+    };
+
+    const handleDecrease = () => {
+        if (!cartItem) return;
+        const newQty = cartItem.quantity - 1;
+
+        if (newQty > 0) {
+            // Instant UI
+            dispatch(updateQuantityOptimistic({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+            
+            // Debounced Sync
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+            syncTimer.current = setTimeout(() => {
+                dispatch(updateQuantity({ cart_item_id: cartItem.cart_item_id, quantity: newQty }));
+            }, 500);
+        } else {
+            // Instant UI
+            dispatch(removeFromCartOptimistic(cartItem.cart_item_id));
+
+            // Debounced Sync
+            if (syncTimer.current) clearTimeout(syncTimer.current);
+            syncTimer.current = setTimeout(() => {
+                dispatch(removeFromCart(cartItem.cart_item_id));
+            }, 500);
         }
     };
 
@@ -299,20 +353,44 @@ export default function ProductDetail() {
 
                     {/* CTA */}
                     <div className="space-y-3">
-                        <button
-                            onClick={handleAddToCart}
-                            disabled={outOfStock || adding}
-                            className="flex w-full items-center justify-center space-x-3 rounded-2xl bg-stone-900 py-6 text-lg font-bold text-white transition-all hover:bg-stone-800 active:scale-95 disabled:bg-stone-300 disabled:cursor-not-allowed"
-                        >
-                            {adding ? (
-                                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                            ) : (
-                                <>
-                                    <ShoppingBag size={20} />
-                                    <span>{outOfStock ? 'Out of Stock' : 'Add to Cart'}</span>
-                                </>
-                            )}
-                        </button>
+                        {cartItem ? (
+                            <div className="flex w-full items-center justify-between rounded-2xl bg-stone-100 p-2">
+                                <button
+                                    onClick={handleDecrease}
+                                    className="flex h-14 w-14 items-center justify-center rounded-xl bg-white text-stone-600 shadow-sm transition-all hover:bg-stone-50 active:scale-90"
+                                >
+                                    {cartItem.quantity === 1 ? <Trash2 size={22} className="text-red-500" /> : <Minus size={22} />}
+                                </button>
+
+                                <div className="flex flex-col items-center">
+                                    <span className="text-xl font-black text-stone-900">{cartItem.quantity}</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400">In Cart</span>
+                                </div>
+
+                                <button
+                                    onClick={handleIncrease}
+                                    disabled={cartItem.quantity >= product.stock_quantity}
+                                    className="flex h-14 w-14 items-center justify-center rounded-xl bg-white text-stone-600 shadow-sm transition-all hover:bg-stone-50 active:scale-90 disabled:opacity-50"
+                                >
+                                    <Plus size={22} />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={handleAddToCart}
+                                disabled={outOfStock || adding}
+                                className="flex w-full items-center justify-center space-x-3 rounded-2xl bg-stone-900 py-6 text-lg font-bold text-white transition-all hover:bg-stone-800 active:scale-95 disabled:bg-stone-300 disabled:cursor-not-allowed"
+                            >
+                                {adding ? (
+                                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                ) : (
+                                    <>
+                                        <ShoppingBag size={20} />
+                                        <span>{outOfStock ? 'Out of Stock' : 'Add to Cart'}</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
                         {addedMsg && (
                             <p className={`text-center text-sm font-semibold ${addedMsg.includes('Failed') ? 'text-red-500' : 'text-green-600'}`}>
                                 {addedMsg}

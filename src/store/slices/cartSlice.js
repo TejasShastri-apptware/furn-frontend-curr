@@ -74,6 +74,18 @@ const cartSlice = createSlice({
             state.loading = false;
             state.error = null;
         },
+        // Synchronous optimistic updates
+        updateQuantityOptimistic: (state, action) => {
+            const { cart_item_id, quantity } = action.payload;
+            const item = state.items.find(i => i.cart_item_id === cart_item_id);
+            if (item) {
+                item.quantity = quantity;
+            }
+        },
+        removeFromCartOptimistic: (state, action) => {
+            const cart_item_id = action.payload;
+            state.items = state.items.filter(i => i.cart_item_id !== cart_item_id);
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -91,9 +103,41 @@ const cartSlice = createSlice({
                 state.error = action.payload;
             })
 
+            // ── updateQuantity (optimistic) ──────────────────────
+            .addCase(updateQuantity.pending, (state, action) => {
+                const { cart_item_id, quantity } = action.meta.arg;
+                const item = state.items.find(i => i.cart_item_id === cart_item_id);
+                if (item) {
+                    item.quantity = quantity;
+                }
+            })
+            .addCase(updateQuantity.rejected, (state, action) => {
+                state.error = action.payload;
+                // refreshCart is already dispatched in the thunk's catch block, 
+                // which will roll back the state on failure.
+            })
+
             // ── removeFromCart (optimistic) ──────────────────────
+            .addCase(removeFromCart.pending, (state, action) => {
+                const cart_item_id = action.meta.arg;
+                state.items = state.items.filter(i => i.cart_item_id !== cart_item_id);
+            })
             .addCase(removeFromCart.fulfilled, (state, action) => {
+                // Already handled by pending, but we keep fulfilled for consistency
                 state.items = state.items.filter(i => i.cart_item_id !== action.payload);
+            })
+            .addCase(removeFromCart.rejected, (state, action) => {
+                state.error = action.payload;
+            })
+
+            // ── addToCart (optimistic for existing items) ────────
+            .addCase(addToCart.pending, (state, action) => {
+                const { product_id, quantity = 1 } = action.meta.arg;
+                const item = state.items.find(i => i.product_id === product_id);
+                if (item) {
+                    item.quantity += quantity;
+                }
+                // Case for new items: wait for fulfilled to get the real cart_item_id
             })
 
             // ── clearCart ────────────────────────────────────────
@@ -115,7 +159,7 @@ const cartSlice = createSlice({
     },
 });
 
-export const { resetCart } = cartSlice.actions;
+export const { resetCart, updateQuantityOptimistic, removeFromCartOptimistic } = cartSlice.actions;
 
 // ── Selectors ────────────────────────────────────────────────────
 export const selectCartItems = (state) => state.cart.items;
