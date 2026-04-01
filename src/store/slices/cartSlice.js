@@ -125,4 +125,7 @@ export const selectCartTotal = (state) =>
 export const selectCartCount = (state) =>
     state.cart.items.reduce((sum, item) => sum + item.quantity, 0);
 
+export const selectCartItemByProductId = (state, productId) => 
+    state.cart.items.find(item => item.product_id === productId);
+
 export default cartSlice.reducer;

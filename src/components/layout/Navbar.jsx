@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useAppSelector } from '../../store/hooks';
 import { selectUser, selectIsAdmin, logout } from '../../store/slices/authSlice';
 import { selectCartCount } from '../../store/slices/cartSlice';
-import { ShoppingCart, Search, Menu, LayoutDashboard, LogIn, LogOut, ClipboardList, User, ChevronDown, MapPin } from 'lucide-react';
+import { ShoppingCart, Search, Menu, LayoutDashboard, LogIn, LogOut, ClipboardList, User, ChevronDown, MapPin, Heart } from 'lucide-react';
 
 const Navbar = () => {
     const dispatch = useDispatch();
@@ -61,6 +61,10 @@ const Navbar = () => {
                             My Orders
                         </Link>
                     )}
+
+                    <Link to="/store/wishlist" className="group relative text-stone-500 hover:text-stone-900 transition-transform active:scale-95">
+                        <Heart size={22} />
+                    </Link>
 
                     <Link to="/store/cart" className="group relative text-stone-500 hover:text-stone-900 transition-transform active:scale-95">
                         <ShoppingCart size={22} />
@@ -119,6 +123,14 @@ const Navbar = () => {
 
                                             {!isAdmin && (
                                                 <>
+                                                    <Link
+                                                        to="/store/wishlist"
+                                                        onClick={() => setDropdownOpen(false)}
+                                                        className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-stone-700 transition-colors hover:bg-stone-50"
+                                                    >
+                                                        <Heart size={15} className="text-stone-400" />
+                                                        My Wishlist
+                                                    </Link>
                                                     <Link
                                                         to="/store/orders"
                                                         onClick={() => setDropdownOpen(false)}

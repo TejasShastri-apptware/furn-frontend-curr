@@ -21,6 +21,7 @@ import CategoriesPage from './pages/admin/Categories'
 import TagsPage from './pages/admin/Tags'
 import OrderHistory from './pages/OrderHistory'
 import Profile from './pages/Profile'
+import Wishlist from './pages/Wishlist'
 
 import { Provider } from 'react-redux'
 import { store } from './store/index.js'
@@ -82,6 +83,10 @@ const router = createBrowserRouter([
       {
         path: 'profile',
         element: <ProtectedRoute><Profile /></ProtectedRoute>
+      },
+      {
+        path: 'wishlist',
+        element: <ProtectedRoute><Wishlist /></ProtectedRoute>
       },
     ],
   },
